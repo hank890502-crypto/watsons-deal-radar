@@ -6,14 +6,16 @@ GitHub Pages 模式只有靜態檔，沒有這些 API；前端會自動偵測（
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .alerts import Notifier, format_text, now_iso
-from .config import DATA_DIR, WEB_DATA_DIR, WEB_DIR, load_all, load_config, notify_settings, save_config
+from .config import CONFIG_DIR, DATA_DIR, WEB_DATA_DIR, WEB_DIR, load_all, load_config, notify_settings, save_config
 from .matching import clean_keyword, pick_reference
 from .pipeline import ScanOptions, run
 from .shopee import make_provider
