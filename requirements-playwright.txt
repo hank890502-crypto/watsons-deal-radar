@@ -1,0 +1,2 @@
+# 選用：用自己的蝦皮登入直接查價（python -m radar shopee-login / --shopee playwright）
+playwright>=1.45

@@ -1,0 +1,39 @@
+{
+  "shopee": {
+    "commission_rate": 0.055,
+    "payment_rate": 0.02,
+    "free_shipping_program_rate": 0.0,
+    "packaging_cost": 5,
+    "shipping_subsidy": 0,
+    "commission_cap_per_item": 0
+  },
+  "watsons_shipping": {
+    "mode": "home_delivery",
+    "home_delivery": {
+      "free_threshold": 688,
+      "fee": 60
+    },
+    "store_pickup": {
+      "free_threshold": 0,
+      "fee": 0
+    }
+  },
+  "points": {
+    "enabled": true,
+    "earn_per_dollar": 1,
+    "points_per_dollar_value": 300
+  },
+  "profit": {
+    "alert_threshold": 0.3,
+    "metric": "roi",
+    "reference": "low3_median",
+    "min_listings": 2,
+    "min_match_score": 0.45
+  },
+  "assumptions": {
+    "order_amount": 1600,
+    "use_coupon": true,
+    "use_card": true,
+    "use_points": true
+  }
+}

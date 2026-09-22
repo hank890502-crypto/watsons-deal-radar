@@ -1,0 +1,64 @@
+{
+  "cards": [
+    {
+      "id": "cube",
+      "name": "國泰 CUBE 卡（範例）",
+      "issuer": "國泰",
+      "enabled": true,
+      "base_rate": 0.005,
+      "rules": [
+        {
+          "name": "指定方案加碼（如：樂饗購／玩數位）",
+          "rate": 0.03,
+          "channels": [
+            "屈臣氏",
+            "網購"
+          ],
+          "cap_reward": 0,
+          "min_spend": 0,
+          "notes": "請依當期方案調整；此為範例值"
+        }
+      ]
+    },
+    {
+      "id": "esun-unicard",
+      "name": "玉山 Unicard（範例）",
+      "issuer": "玉山",
+      "enabled": true,
+      "base_rate": 0.01,
+      "rules": [
+        {
+          "name": "指定通路加碼（範例）",
+          "rate": 0.02,
+          "channels": [
+            "屈臣氏",
+            "網購"
+          ],
+          "cap_reward": 300,
+          "min_spend": 0,
+          "notes": "範例值"
+        }
+      ]
+    },
+    {
+      "id": "taishin-gogo",
+      "name": "台新 @GoGo 卡（範例）",
+      "issuer": "台新",
+      "enabled": false,
+      "base_rate": 0.005,
+      "rules": [
+        {
+          "name": "網購加碼（範例）",
+          "rate": 0.03,
+          "channels": [
+            "網購"
+          ],
+          "cap_reward": 0,
+          "min_spend": 0,
+          "notes": "範例值"
+        }
+      ]
+    }
+  ],
+  "channel": "屈臣氏"
+}

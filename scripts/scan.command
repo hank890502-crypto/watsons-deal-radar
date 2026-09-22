@@ -1,0 +1,8 @@
+#!/bin/bash
+# macOS 雙擊：跑一次完整掃描（含通知）
+cd "$(dirname "$0")/.." || exit 1
+[ -d .venv ] || python3 -m venv .venv
+source .venv/bin/activate
+pip install -q -r requirements.txt
+python -m radar scan "$@"
+echo; echo "完成，按 Enter 關閉"; read -r

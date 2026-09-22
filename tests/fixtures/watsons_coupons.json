@@ -1,0 +1,100 @@
+{
+ "vouchers": [
+  {
+   "assignedToCustomer": false,
+   "code": "C26100917A",
+   "currency": {
+    "active": true,
+    "isocode": "TWD",
+    "symbol": "$"
+   },
+   "discountType": "ORDER_DISCOUNT",
+   "endDate": "2026-09-23T15:59:00+0000",
+   "freeShipping": false,
+   "grabbed": false,
+   "isEliteMemberPromotion": false,
+   "isMemberPromotion": false,
+   "name": "全站滿$1200現折$120",
+   "onlineExclusive": true,
+   "startDate": "2026-09-16T16:00:00+0000",
+   "status": "READY",
+   "usageType": "E_STORE",
+   "value": 120,
+   "valueFormatted": "$120",
+   "voucherCode": "C26100917A",
+   "voucherSourceType": "HYBRIS"
+  },
+  {
+   "assignedToCustomer": false,
+   "code": "C26100917B",
+   "currency": {
+    "active": true,
+    "isocode": "TWD",
+    "symbol": "$"
+   },
+   "discountType": "ORDER_DISCOUNT",
+   "endDate": "2026-09-23T15:59:00+0000",
+   "freeShipping": false,
+   "grabbed": false,
+   "isEliteMemberPromotion": false,
+   "isMemberPromotion": false,
+   "name": "全站滿$1600現折$150",
+   "onlineExclusive": true,
+   "startDate": "2026-09-19T16:00:00+0000",
+   "status": "READY",
+   "usageType": "E_STORE",
+   "value": 150,
+   "valueFormatted": "$150",
+   "voucherCode": "C26100917B",
+   "voucherSourceType": "HYBRIS"
+  },
+  {
+   "assignedToCustomer": false,
+   "code": "C26100917C",
+   "currency": {
+    "active": true,
+    "isocode": "TWD",
+    "symbol": "$"
+   },
+   "discountType": "ORDER_DISCOUNT",
+   "endDate": "2026-09-23T15:59:00+0000",
+   "freeShipping": false,
+   "grabbed": false,
+   "isEliteMemberPromotion": false,
+   "isMemberPromotion": false,
+   "name": "全站滿$2000現折$200",
+   "onlineExclusive": true,
+   "startDate": "2026-09-16T16:00:00+0000",
+   "status": "READY",
+   "usageType": "E_STORE",
+   "value": 200,
+   "valueFormatted": "$200",
+   "voucherCode": "C26100917C",
+   "voucherSourceType": "HYBRIS"
+  },
+  {
+   "assignedToCustomer": false,
+   "code": "C26100917D",
+   "currency": {
+    "active": true,
+    "isocode": "TWD",
+    "symbol": "$"
+   },
+   "discountType": "ORDER_DISCOUNT",
+   "endDate": "2026-09-23T15:59:00+0000",
+   "freeShipping": false,
+   "grabbed": false,
+   "isEliteMemberPromotion": false,
+   "isMemberPromotion": false,
+   "name": "全站滿$3000現折$300",
+   "onlineExclusive": true,
+   "startDate": "2026-09-16T16:00:00+0000",
+   "status": "READY",
+   "usageType": "E_STORE",
+   "value": 300,
+   "valueFormatted": "$300",
+   "voucherCode": "C26100917D",
+   "voucherSourceType": "HYBRIS"
+  }
+ ]
+}

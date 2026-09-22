@@ -1,0 +1,80 @@
+name: scan-and-deploy
+
+on:
+  schedule:
+    - cron: "0 1,7,13 * * *"      # 台北 09:00 / 15:00 / 21:00（UTC+8）
+  workflow_dispatch:
+    inputs:
+      shopee:
+        description: "蝦皮來源 (biggo | none)"
+        default: "biggo"
+      max_lookups:
+        description: "本次蝦皮查價上限（留空用設定檔）"
+        default: ""
+  push:
+    branches: [main]
+    paths: ["web/**", "!web/data/**", "config/**", "radar/**", ".github/workflows/scan.yml"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Unit tests
+        run: python -m pytest -q
+      - name: Scan
+        env:
+          NOTIFY_WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_TO_USER_ID: ${{ secrets.LINE_TO_USER_ID }}
+        run: |
+          EXTRA=""
+          if [ -n "${{ github.event.inputs.max_lookups }}" ]; then EXTRA="--max-lookups ${{ github.event.inputs.max_lookups }}"; fi
+          python -m radar scan --shopee "${{ github.event.inputs.shopee || 'biggo' }}" $EXTRA \
+            --dashboard-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+      - name: Commit data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for f in web/data/latest.json web/data/alerts.json web/data/history.json data/alert_state.json data/cache/shopee; do
+            [ -e "$f" ] && git add -f "$f"
+          done
+          if git diff --cached --quiet; then echo "no changes"; else
+            git commit -m "data: scan $(date -u +'%Y-%m-%dT%H:%MZ')"
+            git pull --rebase origin main || true
+            git push origin HEAD:main
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+  deploy:
+    needs: scan
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
