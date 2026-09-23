@@ -1,6 +1,20 @@
 {
- "ok": false,
- "at": "2026-09-23T18:12:35+08:00",
- "error": "WatsonsError: GET /products/search -> HTTP 403: <HTML><HEAD>\n<TITLE>Access Denied</TITLE>\n</HEAD><BODY>\n<H1>Access Denied</H1>\n \nYou don't have permission to access \"http&#58;&#47;&#47;api&#46;watsons&#46;com&#46;tw&#47;api&#47;v2&#47;wtctw&#47;pro",
- "traceback": "Traceback (most recent call last):\n  File \"/Users/linzihao/區城市爬蟲/radar/cli.py\", line 71, in main\n    summary = run(\n        ScanOptions(\n    ...<8 lines>...\n        )\n    )\n  File \"/Users/linzihao/區城市爬蟲/radar/pipeline.py\", line 94, in run\n    all_promos = client.promotions()\n  File \"/Users/linzihao/區城市爬蟲/radar/watsons.py\", line 109, in promotions\n    data = self.search(\":relevance\", page=0, page_size=1)\n  File \"/Users/linzihao/區城市爬蟲/radar/watsons.py\", line 105, in search\n    return self._get(\"/products/search\", params)\n           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/linzihao/區城市爬蟲/radar/watsons.py\", line 88, in _get\n    raise WatsonsError(f\"GET {path} -> HTTP {r.status_code}: {r.text[:200]}\")\nradar.watsons.WatsonsError: GET /products/search -> HTTP 403: <HTML><HEAD>\n<TITLE>Access Denied</TITLE>\n</HEAD><BODY>\n<H1>Access Denied</H1>\n \nYou don't have permission to access \"http&#58;&#47;&#47;api&#46;watsons&#46;com&#46;tw&#47;api&#47;v2&#47;wtctw&#47;pro\n"
+ "ok": true,
+ "at": "2026-09-23T19:45:46+08:00",
+ "summary": {
+  "products": 3932,
+  "with_shopee": 39,
+  "hot": 23,
+  "new_alerts": 23,
+  "notify": {},
+  "watsons_calls": 57,
+  "watsons_transport": "curl_cffi",
+  "shopee_provider": "biggo",
+  "shopee_calls": 80,
+  "shopee_cache_hits": 1,
+  "shopee_blocked": true,
+  "lookups_evaluated": 81,
+  "cache_pruned": 0,
+  "elapsed_sec": 212.6
+ }
 }
