@@ -80,6 +80,10 @@ DEFAULT_PROMOTIONS: dict[str, Any] = {
         "max_pages_per_promo": 40,
         "request_delay_sec": 0.6,
         "only_in_stock": True,
+        # 屈臣氏 API 的傳輸方式：auto（curl_cffi → playwright）| curl_cffi | playwright | httpx
+        # Akamai 擋純 Python 的 TLS 指紋（httpx 會 403），auto 會自動換方式
+        "watsons_transport": "auto",
+        "playwright_headless": True,
     },
     # 結帳時才套用的整體折扣（售價欄位不含）。取最優者，不疊加（stack_multipliers=false）
     "checkout_multipliers": {

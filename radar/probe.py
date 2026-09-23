@@ -7,8 +7,9 @@ from typing import Any
 import httpx
 
 from .alerts import now_iso
+from .config import DATA_DIR
 from .shopee import BIGGO_HEADERS, parse_biggo_html
-from .watsons import BASE_URL, DEFAULT_HEADERS
+from .watsons import BASE_URL, COMMON_PARAMS, DEFAULT_HEADERS, available_transports, make_transport
 
 TARGETS = {
     "watsons_search": (BASE_URL + "/products/search?fields=BASIC&query=%3Arelevance&pageSize=1&currentPage=0&lang=zh_TW&curr=TWD", DEFAULT_HEADERS),
@@ -41,5 +42,23 @@ def probe(timeout: float = 25.0) -> dict[str, Any]:
                 rec["error"] = f"{type(e).__name__}: {e}"
                 rec["elapsed_ms"] = int((time.time() - t0) * 1000)
             out["results"][name] = rec
-    out["ok"] = all(r.get("ok") for r in out["results"].values())
+    # 屈臣氏：逐一測試可用的傳輸方式（Akamai 擋純 Python TLS 指紋時，curl_cffi / playwright 可繞過）
+    params = dict(COMMON_PARAMS, fields="BASIC", query=":relevance", pageSize=1, currentPage=0)
+    out["watsons_transports"] = {}
+    for name in available_transports():
+        t0 = time.time()
+        rec = {}
+        try:
+            tr = make_transport(name, timeout=timeout, headless=True, profile_dir=DATA_DIR / "watsons_profile")
+            try:
+                status, body = tr.get(BASE_URL + "/products/search", params)
+            finally:
+                tr.close()
+            rec = {"status": status, "ok": status == 200 and '"products"' in body, "body_head": body[:120]}
+        except Exception as e:  # noqa: BLE001
+            rec = {"ok": False, "error": f"{type(e).__name__}: {e}"[:300]}
+        rec["elapsed_ms"] = int((time.time() - t0) * 1000)
+        out["watsons_transports"][name] = rec
+    out["watsons_working_transport"] = next((n for n, r in out["watsons_transports"].items() if r.get("ok")), None)
+    out["ok"] = bool(out["watsons_working_transport"]) and out["results"]["biggo_shopee"].get("ok", False)
     return out

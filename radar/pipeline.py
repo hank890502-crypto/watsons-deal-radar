@@ -33,6 +33,7 @@ class ScanOptions:
     config_dir: Path | None = None
     dashboard_url: str | None = None
     only_codes: list[str] = field(default_factory=list)  # 只處理這些商品（測試 / 單品查價）
+    watsons_transport: str | None = None  # auto | curl_cffi | playwright | httpx（None = 用設定檔）
 
 
 def select_promotions(all_promos: list[dict[str, Any]], scan_cfg: dict[str, Any]) -> list[dict[str, Any]]:
@@ -90,7 +91,12 @@ def run(opts: ScanOptions | None = None) -> dict[str, Any]:
     stamp = now_iso()
 
     # ---------------------------------------------------------------- 1. 屈臣氏
-    client = WatsonsClient(delay_sec=float(scan_cfg.get("request_delay_sec") or 0.6))
+    client = WatsonsClient(
+        delay_sec=float(scan_cfg.get("request_delay_sec") or 0.6),
+        transport=opts.watsons_transport or scan_cfg.get("watsons_transport") or "auto",
+        headless=bool(scan_cfg.get("playwright_headless", True)),
+        profile_dir=opts.data_dir / "watsons_profile",
+    )
     all_promos = client.promotions()
     selected = select_promotions(all_promos, scan_cfg)
     if opts.max_promos:
@@ -210,6 +216,7 @@ def run(opts: ScanOptions | None = None) -> dict[str, Any]:
         "version": __version__,
         "source": {
             "watsons_calls": client.calls,
+            "watsons_transport": getattr(client, "active_transport", "?"),
             "shopee_provider": provider.name,
             "shopee_calls": getattr(provider, "calls", 0),
             "shopee_cache_hits": getattr(provider, "cache_hits", 0),

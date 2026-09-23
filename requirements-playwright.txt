@@ -1,2 +1,2 @@
-# 選用：用自己的蝦皮登入直接查價（python -m radar shopee-login / --shopee playwright）
+# playwright 已列在 requirements.txt；這個檔案保留給只想裝 Playwright 的情境
 playwright>=1.45

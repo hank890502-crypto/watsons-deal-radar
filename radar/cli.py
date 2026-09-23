@@ -27,6 +27,7 @@ def main(argv: list[str] | None = None) -> int:
 
     s = sub.add_parser("scan", help="完整掃描")
     s.add_argument("--shopee", default="biggo", choices=["biggo", "playwright", "none"])
+    s.add_argument("--watsons-transport", default=None, choices=["auto", "curl_cffi", "playwright", "httpx"], help="屈臣氏 API 傳輸方式（預設依設定檔，auto 會自動換）")
     s.add_argument("--max-promos", type=int)
     s.add_argument("--max-pages", type=int)
     s.add_argument("--max-lookups", type=int)
@@ -78,6 +79,7 @@ def main(argv: list[str] | None = None) -> int:
                     dashboard_url=dash,
                     out_dir=Path(args.out),
                     data_dir=Path(args.data),
+                    watsons_transport=args.watsons_transport,
                 )
             )
         except Exception as e:  # noqa: BLE001
@@ -121,9 +123,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "promos":
+        from .config import load_config
         from .watsons import WatsonsClient
 
-        c = WatsonsClient()
+        sc = load_config("promotions")["scan"]
+        c = WatsonsClient(transport=sc.get("watsons_transport", "auto"), headless=bool(sc.get("playwright_headless", True)), profile_dir=DATA_DIR / "watsons_profile")
+        print("transport:", c.active_transport)
         for p in c.promotions():
             print(f"{p['count']:>6}  {p['name']}")
         return 0

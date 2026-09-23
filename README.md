@@ -22,7 +22,8 @@
 
 ### 1.2 資料來源（已實測）
 
-**屈臣氏 `https://api.watsons.com.tw/api/v2/wtctw/…`（OCC v2，匿名可用；台灣一般網路可連，GitHub Actions 的 IP 被 Akamai 擋 403）**
+**屈臣氏 `https://api.watsons.com.tw/api/v2/wtctw/…`（OCC v2，匿名可用）**
+Akamai 會擋「純 Python」的 TLS 指紋（httpx / requests 直接打會 403 Access Denied，GitHub Actions 的 IP 也擋），但瀏覽器頁面裡的 `fetch()` 可以。程式的 `watsons_transport: auto` 會依序用 **curl_cffi**（模仿 Chrome TLS 指紋）→ **playwright**（真的開 Chromium／系統 Chrome，在頁面裡 fetch）；`python -m radar probe` 會列出每種方式的結果。
 
 | 端點 | 用途 |
 |---|---|
@@ -87,7 +88,7 @@ ROI              = 利潤 ÷ 有效單位成本   （預設門檻 30%，可改�
 
 ### 2.1 部署架構（重要：掃描要在台灣的機器上跑）
 
-實測 **屈臣氏 API 對 GitHub Actions 的機器回 403（Akamai Access Denied）**，BigGo 則正常。因此：
+實測 **屈臣氏 API 對 GitHub Actions 的機器回 403（Akamai Access Denied）**，而且純 Python 的 httpx 從任何地方打都會被擋（TLS 指紋），BigGo 則正常。因此掃描用 curl_cffi／Playwright 模仿或直接使用瀏覽器，而且要在台灣的機器上跑：
 
 | 誰做什麼 | 在哪裡 |
 |---|---|

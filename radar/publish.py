@@ -33,6 +33,8 @@ _HELPER = "!f() { echo username=x-access-token; echo \"password=$GITHUB_TOKEN\";
 
 
 def _git(args: list[str], cwd: Path = ROOT, check: bool = True, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    env = dict(env or os.environ)
+    env["GIT_TERMINAL_PROMPT"] = "0"  # 沒憑證就直接失敗，不要卡在「Username for https://github.com」
     return subprocess.run(["git", *args], cwd=cwd, text=True, capture_output=True, check=check, env=env)
 
 
