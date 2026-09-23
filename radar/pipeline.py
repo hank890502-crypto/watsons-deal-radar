@@ -201,6 +201,10 @@ def run(opts: ScanOptions | None = None) -> dict[str, Any]:
 
     plist.sort(key=sort_key)
     hot = select_hot(plist)
+    # 精簡快照：前端會用 engine.js 重算，這些欄位不需要
+    for p in plist:
+        p.pop("cost1", None)
+        p.pop("category", None)
     snapshot = {
         "generated_at": stamp,
         "version": __version__,

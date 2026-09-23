@@ -159,6 +159,7 @@ function recompute() {
 }
 
 const byCode = (code) => S.products.find((p) => p.code === code);
+const topCat = (p) => (p.category_path || '').split('/')[0] || '';
 
 // ------------------------------------------------------------------ router
 const routes = { deals: renderDeals, cart: renderCart, cards: renderCards, settings: renderSettings, alerts: renderAlerts, about: renderAbout };
@@ -214,7 +215,7 @@ function filteredProducts() {
     if (f.hot && !p.eval?.hot) return false;
     if (f.withRef && !p.ref) return false;
     if (f.promo && !(p.promotions || []).includes(f.promo)) return false;
-    if (f.cat && (p.category?.[0] || '') !== f.cat) return false;
+    if (f.cat && topCat(p) !== f.cat) return false;
     if (q && !`${p.name} ${p.brand} ${p.code} ${p.ean}`.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -246,7 +247,7 @@ function renderDeals() {
   const rows = list.slice((f.page - 1) * per, f.page * per);
   const d = S.data;
   const promos = (d.promotions || []).filter((p) => p.selected).sort((a, b) => (b.scanned || 0) - (a.scanned || 0));
-  const cats = [...new Set(S.products.map((p) => p.category?.[0]).filter(Boolean))].sort();
+  const cats = [...new Set(S.products.map(topCat).filter(Boolean))].sort();
   const hot = S.products.filter((p) => p.eval?.hot).length;
   const withRef = S.products.filter((p) => p.ref).length;
   const ctx = S.ctx;

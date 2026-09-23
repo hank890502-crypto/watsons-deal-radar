@@ -39,6 +39,8 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - name: Unit tests
         run: python -m pytest -q
+      - name: Probe data sources
+        run: python -m radar probe || true
       - name: Scan
         env:
           NOTIFY_WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
@@ -53,10 +55,11 @@ jobs:
           python -m radar scan --shopee "${{ github.event.inputs.shopee || 'biggo' }}" $EXTRA \
             --dashboard-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
       - name: Commit data
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for f in web/data/latest.json web/data/alerts.json web/data/history.json data/alert_state.json data/cache/shopee; do
+          for f in web/data/latest.json web/data/alerts.json web/data/history.json web/data/status.json web/data/probe.json data/alert_state.json data/cache/shopee; do
             [ -e "$f" ] && git add -f "$f"
           done
           if git diff --cached --quiet; then echo "no changes"; else

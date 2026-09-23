@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-HISTORY_CAP = 90  # 每個商品最多保留幾個時間點
+HISTORY_CAP = 60  # 每個商品最多保留幾個時間點
 
 
 def read_json(path: Path, default: Any = None) -> Any:

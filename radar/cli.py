@@ -5,6 +5,7 @@
   python -m radar promos                      # 列出站上所有促銷與商品數
   python -m radar lookup BP_598686 [--keyword 自訂]   # 單一商品：成本 + 蝦皮參考價 + 利潤
   python -m radar notify-test                 # 發一則測試通知
+  python -m radar probe                       # 測試屈臣氏 / BigGo 是否能從目前環境連線
   python -m radar shopee-login                # (選用) 開啟瀏覽器登入蝦皮，供 --shopee playwright 使用
 """
 from __future__ import annotations
@@ -38,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--port", type=int, default=8765)
 
     sub.add_parser("promos", help="列出促銷")
+    sub.add_parser("probe", help="測試資料來源是否可連（寫入 web/data/probe.json）")
 
     l = sub.add_parser("lookup", help="單一商品查價")
     l.add_argument("code")
@@ -51,21 +53,42 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
     if args.cmd == "scan":
-        from .pipeline import ScanOptions, run
+        import traceback
 
-        summary = run(
-            ScanOptions(
-                shopee=args.shopee,
-                max_promos=args.max_promos,
-                max_pages=args.max_pages,
-                max_lookups=args.max_lookups,
-                notify=not args.no_notify,
-                dashboard_url=args.dashboard_url,
-                out_dir=Path(args.out),
-                data_dir=Path(args.data),
+        from .alerts import now_iso
+        from .pipeline import ScanOptions, run
+        from .storage import write_json
+
+        status_path = Path(args.out) / "status.json"
+        try:
+            summary = run(
+                ScanOptions(
+                    shopee=args.shopee,
+                    max_promos=args.max_promos,
+                    max_pages=args.max_pages,
+                    max_lookups=args.max_lookups,
+                    notify=not args.no_notify,
+                    dashboard_url=args.dashboard_url,
+                    out_dir=Path(args.out),
+                    data_dir=Path(args.data),
+                )
             )
-        )
+        except Exception as e:  # noqa: BLE001
+            write_json(status_path, {"ok": False, "at": now_iso(), "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()[-3000:]}, indent=1)
+            logging.getLogger(__name__).error("scan failed: %s", e)
+            raise
+        write_json(status_path, {"ok": True, "at": now_iso(), "summary": summary}, indent=1)
         print(json.dumps(summary, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "probe":
+        from .probe import probe
+
+        from .storage import write_json
+
+        result = probe()
+        write_json(WEB_DATA_DIR / "probe.json", result, indent=1)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "serve":
