@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- macOS 排程：每天 09:00 / 15:00 / 21:00 掃描並推送資料到 GitHub。
+       安裝：把 __REPO__ 換成 repo 的絕對路徑後，
+         cp scripts/com.watsons-deal-radar.scan.plist ~/Library/LaunchAgents/
+         launchctl load ~/Library/LaunchAgents/com.watsons-deal-radar.scan.plist
+       立即測試：launchctl start com.watsons-deal-radar.scan
+       移除：launchctl unload ~/Library/LaunchAgents/com.watsons-deal-radar.scan.plist -->
+  <key>Label</key><string>com.watsons-deal-radar.scan</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__REPO__/scripts/run_scan.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>__REPO__</string>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
+  <key>StandardOutPath</key><string>/tmp/watsons-deal-radar.log</string>
+  <key>StandardErrorPath</key><string>/tmp/watsons-deal-radar.log</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
+</dict>
+</plist>

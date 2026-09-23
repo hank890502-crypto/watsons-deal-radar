@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# 給 cron / launchd 用：每天固定時間掃描並通知
-# 例（每天 09:00、21:00）：
-#   0 9,21 * * * /path/to/watsons-deal-radar/scripts/run_scan.sh >> /tmp/radar.log 2>&1
+# 排程用：完整掃描 → 通知 → 推送資料到 GitHub（Pages 自動更新）
+# macOS：用 scripts/com.watsons-deal-radar.scan.plist（launchd）
+# Linux（家用主機 / 樹莓派 / ARM mini PC）：crontab -e 加
+#   0 9,15,21 * * * /path/to/watsons-deal-radar/scripts/run_scan.sh >> /tmp/watsons-deal-radar.log 2>&1
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -d .venv ] || python3 -m venv .venv
 source .venv/bin/activate
 pip install -q -r requirements.txt
-python -m radar scan --dashboard-url "${DASHBOARD_URL:-}"
+python -m radar scan --publish

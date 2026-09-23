@@ -3,7 +3,7 @@
 > 自動整理屈臣氏線上商店的所有促銷 → 用「多件優惠＋結帳折扣＋折價券＋信用卡回饋＋點數」算出每件商品的**真實成本** → 對比蝦皮售價 → 利潤 ≥ 30% 就標紅並推播。附購物車最佳化（怎麼買最划算、刷哪張卡）。
 
 - **儀表板**：GitHub Pages 靜態網頁（手機可看），或本機一鍵啟動（互動功能更完整）
-- **排程**：GitHub Actions 每天 09:00／15:00／21:00（台北）自動掃描、更新資料、部署
+- **排程**：在你的 Mac／家用主機每天 09:00／15:00／21:00 掃描並推送資料，GitHub Actions 自動部署 Pages（屈臣氏擋 GitHub 的 IP，掃描不能在 Actions 上跑）
 - **通知**：generic webhook（可接 n8n）／Telegram／Discord／LINE Messaging API
 
 ---
@@ -18,11 +18,11 @@
 | 搭配信用卡回饋，算出怎麼買最便宜 | 計價引擎：結帳整體折扣（如官網 88 折）→ 多件優惠 → 折價券 → 免運門檻 → 各卡回饋（含屈臣氏站上的「刷○○卡滿 $888 送 3 萬點」）→ 寵i 點數 |
 | 對比蝦皮價格、判斷有無利潤 | 蝦皮搜尋必須登入，改用比價網 BigGo 的「蝦皮購物＋蝦皮商城」篩選結果；名稱相似度比對、多入組換算單價、取「最低 3 筆中位數」當參考價；扣掉蝦皮成交手續費、金流費、包材後算利潤 |
 | 利潤 > 30% 時通知 | 每次掃描後比對門檻，24 小時內同一商品不重複通知（ROI 再提高 10 個百分點例外），推播到你設定的管道 |
-| 網頁 App、上線到 GitHub | 純靜態前端（無框架、無 build），GitHub Actions 定時跑 Python 掃描並把 JSON 提交回 repo，GitHub Pages 直接部署 `web/` |
+| 網頁 App、上線到 GitHub | 純靜態前端（無框架、無 build）；掃描程式把 JSON 推回 repo，GitHub Actions 把 `web/` 部署成 GitHub Pages |
 
 ### 1.2 資料來源（已實測）
 
-**屈臣氏 `https://api.watsons.com.tw/api/v2/wtctw/…`（OCC v2，匿名可用，資料中心 IP 也可連）**
+**屈臣氏 `https://api.watsons.com.tw/api/v2/wtctw/…`（OCC v2，匿名可用；台灣一般網路可連，GitHub Actions 的 IP 被 Akamai 擋 403）**
 
 | 端點 | 用途 |
 |---|---|
@@ -85,21 +85,35 @@ ROI              = 利潤 ÷ 有效單位成本   （預設門檻 30%，可改�
 
 ## 2. 快速開始
 
-### 2.1 GitHub Pages（零維護）
+### 2.1 部署架構（重要：掃描要在台灣的機器上跑）
 
-1. 把這個 repo 推上 GitHub（`main` 分支）。
-2. repo **Settings → Pages → Build and deployment → Source** 選 **GitHub Actions**。
-3. **Settings → Secrets and variables → Actions** 新增通知用的 secrets（見 §4；不設也能跑，只是不推播）。
-4. **Actions → scan-and-deploy → Run workflow** 手動跑第一次（之後每天 09:00／15:00／21:00 自動跑）。
-5. 完成後儀表板在 `https://<你的帳號>.github.io/<repo 名>/`。
+實測 **屈臣氏 API 對 GitHub Actions 的機器回 403（Akamai Access Denied）**，BigGo 則正常。因此：
 
-每次掃描會把 `web/data/*.json`、`data/cache/shopee/`（蝦皮查價快取）與 `data/alert_state.json`（通知去重）提交回 repo，所以歷史與快取都會累積。
+| 誰做什麼 | 在哪裡 |
+|---|---|
+| 掃描屈臣氏 → 查蝦皮 → 算利潤 → 推播 → `python -m radar scan --publish` 把 `web/data/*.json` 推回 repo | **你的 Mac 或家用主機**（台灣 IP），用 launchd / cron / Docker 排程 |
+| 收到 push 後把 `web/` 部署成 GitHub Pages（`.github/workflows/deploy.yml`） | GitHub Actions（自動） |
+| `scan.yml`（手動觸發用）— 保留給日後測試 GitHub 是否還被擋 | GitHub Actions |
+
+儀表板網址：`https://<帳號>.github.io/watsons-deal-radar/`（第一次 push 資料後約 1 分鐘生效）。
+
+**推送用的 token**：到 GitHub → Settings → Developer settings → Fine-grained tokens → 只選這個 repo、權限 *Contents: Read and write* → 把 token 放進 repo 根目錄的 `.env`（`GITHUB_TOKEN=github_pat_…`，此檔已在 .gitignore）。沒有 token 時，`--publish` 會先 commit，再由你用 GitHub Desktop 按 Push 也行。
+
+**排程**
+
+- macOS：雙擊 `scripts/install_launchd.command`（每天 09:00／15:00／21:00；Mac 睡眠時錯過的會在喚醒後補跑）。log 在 `/tmp/watsons-deal-radar.log`。
+- Linux／ARM 家用主機（例如跑 Home Assistant 的 mini PC，24 小時開機最理想）：`git clone` 後 `crontab -e` 加
+  `0 9,15,21 * * * /path/to/watsons-deal-radar/scripts/run_scan.sh >> /tmp/watsons-deal-radar.log 2>&1`
+- Docker（家用主機）：`docker build -t watsons-deal-radar . && docker run --rm --env-file .env -v "$PWD":/app watsons-deal-radar`，一樣放進 cron。
+
+**通知**：本機／家用主機的 `.env` 填入 §4 的變數即可（GitHub Secrets 只有手動 `scan.yml` 會用到）。
 
 ### 2.2 本機（macOS 一鍵）
 
 ```
-雙擊 scripts/start.command        → 建 .venv、裝套件、開 http://127.0.0.1:8765
-雙擊 scripts/scan.command         → 跑一次掃描（含通知）
+雙擊 scripts/start.command        → 建 .venv、裝套件、開 http://127.0.0.1:8765（本機互動版儀表板）
+雙擊 scripts/scan.command         → 跑一次掃描（含通知）並推送到 GitHub
+雙擊 scripts/install_launchd.command → 安裝每日排程
 ```
 
 或命令列：
@@ -107,22 +121,21 @@ ROI              = 利潤 ÷ 有效單位成本   （預設門檻 30%，可改�
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m radar scan                # 完整掃描 → web/data/latest.json
+python -m radar scan --publish      # 完整掃描 → web/data/latest.json → 推送
 python -m radar serve               # 本機網頁 App
 python -m radar promos              # 列出站上所有促銷與商品數
 python -m radar lookup BP_598686    # 單一商品：成本 + 蝦皮參考價 + 利潤
+python -m radar probe               # 測試這台機器能不能連屈臣氏／BigGo
 python -m radar notify-test         # 測試通知管道
 ```
 
 本機模式多了：右上角「重新掃描」、設定頁直接寫回 `config/*.json`、商品詳情的「重新查價」、人工比對即時存檔。
 
-排程：`crontab -e` 加 `0 9,21 * * * /path/to/scripts/run_scan.sh >> /tmp/radar.log 2>&1`（或用 launchd）。
-
 ### 2.3 蝦皮來源選擇
 
 | 模式 | 指令 | 說明 |
 |---|---|---|
-| BigGo（預設） | `--shopee biggo` | 不用登入；GitHub Actions 也能跑。若某天被擋（連續 5 次抓不到資料）會自動停止本次查價並沿用快取 |
+| BigGo（預設） | `--shopee biggo` | 不用登入。若某天被擋（連續 5 次抓不到資料）會自動停止本次查價並沿用快取 |
 | Playwright | `pip install -r requirements-playwright.txt && playwright install chromium`，`python -m radar shopee-login` 登入一次，之後 `--shopee playwright` | 用你自己的蝦皮帳號直接看搜尋結果，最準但只能在本機跑 |
 | 人工 | 儀表板商品詳情 → 手動參考價／採用某筆／排除某筆 | 存在 `config/matches.json`，優先於自動結果 |
 
@@ -166,7 +179,7 @@ python -m radar notify-test         # 測試通知管道
 
 1. **請以屈臣氏結帳頁為準**：折扣能否疊加、折價券除外商品（廠商直送／專櫃／隱形眼鏡／集點商品）、限購量、缺貨，這個工具是「快速篩選」，下單前把商品放進官網購物袋再確認一次。
 2. **蝦皮參考價是估計**：列表價 ≠ 成交價（賣場優惠券、免運），且賣出速度看品類；「最低 3 筆中位數」較保守，但名稱比對仍可能誤配，達標商品請點開候選列表看一眼。
-3. **資料來源會變**：屈臣氏／BigGo 改版時解析可能失效，`tests/fixtures/` 存有實際回應樣本，改版後更新解析器與測試即可。GitHub Actions 若被 BigGo 擋，改在本機跑（或用 Playwright 模式）。
+3. **資料來源會變**：屈臣氏／BigGo 改版時解析可能失效，`tests/fixtures/` 存有實際回應樣本，改版後更新解析器與測試即可。`python -m radar probe` 可隨時檢查連線狀態（結果也會寫進 `web/data/probe.json`）。
 4. **使用條款**：本工具只讀取公開頁面、低頻率、單執行緒（屈臣氏約 0.6 秒/請求，BigGo 1.5 秒/請求），請勿調高到造成對方負擔；資料僅供個人比價。
 5. 儀表板 `latest.json` 約數 MB（依掃描的促銷數而定），手機第一次載入會慢幾秒。
 
@@ -186,8 +199,9 @@ radar/        watsons.py 屈臣氏 API｜shopee.py BigGo/Playwright/人工｜mat
 web/          index.html / app.js / engine.js / styles.css；data/ 為掃描輸出
 config/       fees.json / promotions.json / cards.json / matches.json
 tests/        pytest + fixtures（真實 API 回應樣本）
-.github/      scan.yml（排程掃描＋部署 Pages）、test.yml
-scripts/      start.command / scan.command / run_scan.sh
+.github/      deploy.yml（push 後部署 Pages）、scan.yml（手動測試用）、test.yml
+scripts/      start.command / scan.command / install_launchd.command / run_scan.sh / launchd plist
+Dockerfile    家用主機用
 ```
 
 ### Roadmap（可再加）

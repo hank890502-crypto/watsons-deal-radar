@@ -1,6 +1,7 @@
 """命令列：
 
-  python -m radar scan [--shopee biggo|playwright|none] [--max-promos N] [--max-pages N] [--max-lookups N] [--no-notify]
+  python -m radar scan [--publish] [--shopee biggo|playwright|none] [--max-promos N] [--max-pages N] [--max-lookups N] [--no-notify]
+  python -m radar publish                     # 把上次掃描結果推送到 GitHub（Pages 自動更新）
   python -m radar serve [--host 127.0.0.1] [--port 8765]
   python -m radar promos                      # 列出站上所有促銷與商品數
   python -m radar lookup BP_598686 [--keyword 自訂]   # 單一商品：成本 + 蝦皮參考價 + 利潤
@@ -30,7 +31,8 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--max-pages", type=int)
     s.add_argument("--max-lookups", type=int)
     s.add_argument("--no-notify", action="store_true")
-    s.add_argument("--dashboard-url", default=None)
+    s.add_argument("--dashboard-url", default=None, help="通知裡附的儀表板網址（預設由 git remote 推算）")
+    s.add_argument("--publish", action="store_true", help="掃描後把資料 commit 並推送到 GitHub（Pages 會自動更新）")
     s.add_argument("--out", default=str(WEB_DATA_DIR))
     s.add_argument("--data", default=str(DATA_DIR))
 
@@ -40,6 +42,8 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("promos", help="列出促銷")
     sub.add_parser("probe", help="測試資料來源是否可連（寫入 web/data/probe.json）")
+    pb = sub.add_parser("publish", help="把 web/data 的掃描結果 commit 並推送到 GitHub")
+    pb.add_argument("-m", "--message", default=None)
 
     l = sub.add_parser("lookup", help="單一商品查價")
     l.add_argument("code")
@@ -59,7 +63,10 @@ def main(argv: list[str] | None = None) -> int:
         from .pipeline import ScanOptions, run
         from .storage import write_json
 
+        from .publish import dashboard_url, publish
+
         status_path = Path(args.out) / "status.json"
+        dash = args.dashboard_url or dashboard_url()
         try:
             summary = run(
                 ScanOptions(
@@ -68,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
                     max_pages=args.max_pages,
                     max_lookups=args.max_lookups,
                     notify=not args.no_notify,
-                    dashboard_url=args.dashboard_url,
+                    dashboard_url=dash,
                     out_dir=Path(args.out),
                     data_dir=Path(args.data),
                 )
@@ -76,10 +83,23 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as e:  # noqa: BLE001
             write_json(status_path, {"ok": False, "at": now_iso(), "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()[-3000:]}, indent=1)
             logging.getLogger(__name__).error("scan failed: %s", e)
+            if args.publish:
+                print(json.dumps(publish(), ensure_ascii=False))
             raise
         write_json(status_path, {"ok": True, "at": now_iso(), "summary": summary}, indent=1)
         print(json.dumps(summary, ensure_ascii=False, indent=2))
+        if args.publish:
+            res = publish()
+            print(json.dumps(res, ensure_ascii=False))
+            return 0 if res.get("ok") else 2
         return 0
+
+    if args.cmd == "publish":
+        from .publish import publish
+
+        res = publish(message=args.message)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0 if res.get("ok") else 2
 
     if args.cmd == "probe":
         from .probe import probe

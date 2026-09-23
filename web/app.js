@@ -48,6 +48,7 @@ const S = {
   products: [],            // computed
   ctx: null,
   status: null,
+  scanStatus: null,
 };
 
 async function fetchJSON(url, opts) {
@@ -69,6 +70,7 @@ async function boot() {
     return;
   }
   try { S.alerts = await fetchJSON('data/alerts.json'); } catch { S.alerts = []; }
+  try { S.scanStatus = await fetchJSON('data/status.json'); } catch { S.scanStatus = null; }
   await loadSettings();
   recompute();
   renderTopbar();
@@ -238,6 +240,12 @@ function roiBadge(ev) {
   return `<span class="badge ${cls}" title="利潤 ${money(ev.profit)}／ROI ${pct(ev.roi)}／毛利率 ${pct(ev.margin)}">${pct(v)}</span>`;
 }
 
+function statusBanner() {
+  const st = S.scanStatus;
+  if (!st || st.ok !== false) return '';
+  return `<div class="card" style="border-color:var(--bad);background:var(--bad-soft)"><b>上次掃描失敗</b>（${fmtDate(st.at)}）：<span class="mono">${h((st.error || '').slice(0, 300))}</span><div class="hint">目前顯示的是更早一次成功掃描的資料。若錯誤是 HTTP 403，代表這台機器被屈臣氏擋住，請改在本機／家用主機執行掃描（README「排程」）。</div></div>`;
+}
+
 function renderDeals() {
   const list = filteredProducts();
   const f = S.filters;
@@ -252,6 +260,7 @@ function renderDeals() {
   const withRef = S.products.filter((p) => p.ref).length;
   const ctx = S.ctx;
   return `
+  ${statusBanner()}
   <div class="grid-tiles">
     <div class="tile"><div class="label">掃描促銷商品</div><div class="value">${S.products.length.toLocaleString()}</div><div class="sub">${promos.length} 個促銷 · ${fmtDate(d.generated_at)}</div></div>
     <div class="tile"><div class="label">有蝦皮參考價</div><div class="value">${withRef}</div><div class="sub">查價上限 ${h(S.settings.promotions.shopee_lookup?.max_lookups_per_run ?? '—')}/次，快取 ${h(S.settings.promotions.shopee_lookup?.cache_hours ?? '—')}h</div></div>

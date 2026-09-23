@@ -1,8 +1,8 @@
-name: scan-and-deploy
+name: scan-on-github (manual)
 
+# 注意：屈臣氏 API 對 GitHub Actions 的 IP 回 403（Akamai），所以排程掃描改在本機／家用主機執行
+# （見 README「排程」）。這個 workflow 保留給手動測試：若某天 GitHub 不再被擋，可以把 schedule 加回來。
 on:
-  schedule:
-    - cron: "0 1,7,13 * * *"      # 台北 09:00 / 15:00 / 21:00（UTC+8）
   workflow_dispatch:
     inputs:
       shopee:
@@ -11,14 +11,9 @@ on:
       max_lookups:
         description: "本次蝦皮查價上限（留空用設定檔）"
         default: ""
-  push:
-    branches: [main]
-    paths: ["web/**", "!web/data/**", "config/**", "radar/**", ".github/workflows/scan.yml"]
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: scan
@@ -67,17 +62,3 @@ jobs:
             git pull --rebase origin main || true
             git push origin HEAD:main
           fi
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: web
-
-  deploy:
-    needs: scan
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
