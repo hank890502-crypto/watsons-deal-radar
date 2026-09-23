@@ -48,6 +48,9 @@ def probe(timeout: float = 25.0) -> dict[str, Any]:
     for name in available_transports():
         t0 = time.time()
         rec = {}
+        if name == "playwright_headed" and any(r.get("ok") for r in out["watsons_transports"].values()):
+            out["watsons_transports"][name] = {"ok": None, "skipped": "已有可用的方式，不另開視窗測試"}
+            continue
         try:
             tr = make_transport(name, timeout=timeout, headless=True, profile_dir=DATA_DIR / "watsons_profile")
             try:

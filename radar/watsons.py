@@ -84,6 +84,11 @@ class CurlCffiTransport:
 
         self.session = cffi_requests.Session(impersonate=impersonate, timeout=timeout)
         self.session.headers.update({k: v for k, v in DEFAULT_HEADERS.items() if k != "User-Agent"})
+        # 先逛一下首頁拿 Akamai 的 cookie（_abck / bm_sz），之後打 API 比較像真人
+        try:
+            self.session.get(SITE_URL + "/", headers={"Accept": "text/html,*/*;q=0.8"})
+        except Exception as e:  # noqa: BLE001
+            log.debug("curl_cffi warm-up failed: %s", e)
 
     def get(self, url: str, params: dict[str, Any]) -> tuple[int, str]:
         r = self.session.get(url, params=params)
@@ -104,10 +109,12 @@ class PlaywrightTransport:
     def __init__(self, timeout: float = 30.0, headless: bool = True, profile_dir: Path | None = None):
         from playwright.sync_api import sync_playwright  # type: ignore
 
+        self.name = "playwright" if headless else "playwright_headed"
         self.timeout_ms = int(timeout * 1000)
         self._pw = sync_playwright().start()
         self.profile_dir = profile_dir
         self.ctx = None
+        self.browser = None
         last_err: Exception | None = None
         # 先用系統的 Google Chrome（指紋最像真人、不用下載），沒有再用內建 Chromium
         for attempt, kwargs in enumerate(({"channel": "chrome"}, {}, {"_install": True})):
@@ -115,12 +122,19 @@ class PlaywrightTransport:
                 if kwargs.pop("_install", False):
                     log.info("playwright: 下載 Chromium（只需一次）…")
                     subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
-                args = dict(headless=headless, locale="zh-TW", viewport={"width": 1280, "height": 900}, **kwargs)
+                args = dict(
+                    headless=headless,
+                    locale="zh-TW",
+                    viewport={"width": 1280, "height": 900},
+                    ignore_default_args=["--enable-automation"],  # 少一個「受自動化軟體控制」的特徵
+                    **kwargs,
+                )
                 if profile_dir:
-                    profile_dir.mkdir(parents=True, exist_ok=True)
-                    self.ctx = self._pw.chromium.launch_persistent_context(str(profile_dir), **args)
+                    d = profile_dir if headless else profile_dir.with_name(profile_dir.name + "_headed")
+                    d.mkdir(parents=True, exist_ok=True)
+                    self.ctx = self._pw.chromium.launch_persistent_context(str(d), **args)
                 else:
-                    self.browser = self._pw.chromium.launch(**{k: v for k, v in args.items() if k in ("headless", "channel")})
+                    self.browser = self._pw.chromium.launch(**{k: v for k, v in args.items() if k in ("headless", "channel", "ignore_default_args")})
                     self.ctx = self.browser.new_context(locale="zh-TW", viewport={"width": 1280, "height": 900})
                 break
             except Exception as e:  # noqa: BLE001
@@ -130,14 +144,28 @@ class PlaywrightTransport:
             self._pw.stop()
             raise WatsonsError(f"無法啟動 Playwright 瀏覽器：{last_err}（請執行 python -m playwright install chromium）")
         self.page = self.ctx.new_page()
-        self.page.goto(SITE_URL + "/", wait_until="domcontentloaded", timeout=60000)
-        self.page.wait_for_timeout(2500)
+        try:
+            self.page.goto(SITE_URL + "/", wait_until="domcontentloaded", timeout=60000)
+        except Exception as e:  # noqa: BLE001
+            log.warning("playwright: 首頁載入逾時（%s），仍嘗試打 API", e)
+        # 讓 Akamai 的感測器跑完（它會在幾秒內寫入 _abck cookie）
+        self.page.wait_for_timeout(4000)
+
+    _FETCH_JS = "async (u) => { const r = await fetch(u, {credentials: 'include'}); const t = await r.text(); return [r.status, t]; }"
 
     def get(self, url: str, params: dict[str, Any]) -> tuple[int, str]:
         full = url + "?" + urlencode(params)
-        status, text = self.page.evaluate(
-            "async (u) => { const r = await fetch(u); const t = await r.text(); return [r.status, t]; }", full
-        )
+        try:
+            status, text = self.page.evaluate(self._FETCH_JS, full)
+            return int(status), text
+        except Exception as e:  # noqa: BLE001
+            if "Failed to fetch" not in str(e):
+                raise
+        # 被擋的回應沒有 CORS 標頭，頁面裡的 fetch 讀不到內容 → 直接把分頁導到 API 網址讀取。
+        # 之後這個分頁的 origin 就是 api.watsons.com.tw，fetch 變成同源，不再有 CORS 問題。
+        resp = self.page.goto(full, wait_until="load", timeout=self.timeout_ms)
+        status = resp.status if resp else 0
+        text = self.page.evaluate("() => document.body ? document.body.innerText : ''")
         return int(status), text
 
     def close(self) -> None:
@@ -164,6 +192,7 @@ def available_transports() -> list[str]:
         import playwright  # noqa: F401
 
         out.append("playwright")
+        out.append("playwright_headed")  # 無頭模式也被擋時，開一個看得到的 Chrome 視窗
     except ImportError:
         pass
     return out
@@ -174,7 +203,20 @@ def make_transport(name: str, timeout: float = 30.0, headless: bool = True, prof
         return CurlCffiTransport(timeout)
     if name == "playwright":
         return PlaywrightTransport(timeout, headless=headless, profile_dir=profile_dir)
+    if name == "playwright_headed":
+        return PlaywrightTransport(timeout, headless=False, profile_dir=profile_dir)
     return HttpxTransport(timeout)
+
+
+def looks_blocked(status: int, text: str) -> str | None:
+    """回傳被擋的原因；None = 正常回應。Akamai 通常回 403 Access Denied，偶爾回 200 的 HTML 挑戰頁。"""
+    if status == 403:
+        return "403 Access Denied" if "Access Denied" in text else "403"
+    if status in (401, 406, 429) and "<html" in text.lower():
+        return f"{status} 挑戰頁"
+    if status == 200 and text.lstrip()[:1] == "<":
+        return "回傳 HTML 而非 JSON"
+    return None
 
 
 class WatsonsClient:
@@ -196,20 +238,24 @@ class WatsonsClient:
         self._last_call = 0.0
         self.calls = 0
         self.transport_name = transport
+        self.tried: list[str] = []
         if client is not None:  # 測試注入
             self._transport = HttpxTransport(timeout)
             self._transport.client = client
             self._chain: list[str] = []
         elif transport == "auto":
             avail = available_transports()
-            # curl_cffi → playwright；沒有 curl_cffi 時先試 httpx 再 playwright
-            chain = [t for t in ("curl_cffi", "httpx", "playwright") if t in avail]
+            # curl_cffi → playwright（無頭）→ playwright（開視窗）；沒有 curl_cffi 時先試 httpx
+            chain = [t for t in ("curl_cffi", "httpx", "playwright", "playwright_headed") if t in avail]
             if "curl_cffi" in chain:
                 chain.remove("httpx")
+            if not headless and "playwright_headed" in chain:
+                chain.remove("playwright_headed")  # 設定本來就是開視窗，不必再試一次
             self._chain = chain
             self._transport = make_transport(self._chain.pop(0), timeout, headless, profile_dir)
         else:
-            self._chain = []
+            # 指定單一方式；若指定的是無頭 playwright，被擋時仍退到開視窗
+            self._chain = ["playwright_headed"] if (transport == "playwright" and headless and "playwright_headed" in available_transports()) else []
             self._transport = make_transport(transport, timeout, headless, profile_dir)
 
     @property
@@ -225,17 +271,23 @@ class WatsonsClient:
         self._transport.close()
 
     def _escalate(self, reason: str) -> bool:
-        """403 時換下一種傳輸方式；沒有可換的回傳 False。"""
-        if not self._chain:
-            return False
-        nxt = self._chain.pop(0)
-        log.warning("watsons: %s 被擋（%s），改用 %s", self._transport.name, reason, nxt)
-        try:
-            self._transport.close()
-        except Exception:  # noqa: BLE001
-            pass
-        self._transport = make_transport(nxt, self.timeout, self.headless, self.profile_dir)
-        return True
+        """被擋時換下一種傳輸方式；沒有可換的回傳 False。"""
+        self.tried.append(self._transport.name)
+        while self._chain:
+            nxt = self._chain.pop(0)
+            log.warning("watsons: %s 被擋（%s），改用 %s", self._transport.name, reason, nxt)
+            try:
+                self._transport.close()
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                self._transport = make_transport(nxt, self.timeout, self.headless, self.profile_dir)
+                return True
+            except Exception as e:  # noqa: BLE001  # 例如 playwright 沒裝好 → 試下一個
+                log.warning("watsons: 無法啟動 %s（%s）", nxt, e)
+                self.tried.append(f"{nxt}(無法啟動)")
+                self._transport = HttpxTransport(self.timeout)
+        return False
 
     def _get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         p = dict(COMMON_PARAMS)
@@ -252,25 +304,28 @@ class WatsonsClient:
                 status, text = self._transport.get(url, p)
                 self._last_call = time.monotonic()
                 self.calls += 1
+                blocked = looks_blocked(status, text)
+                if blocked:
+                    if self._escalate(blocked):
+                        attempt -= 1  # 換傳輸方式不算重試次數
+                        continue
+                    raise WatsonsBlocked(
+                        f"GET {path} -> {blocked}（Akamai 擋機器人）。已試過的傳輸方式都被擋：{'、'.join(self.tried)}；"
+                        "請確認已安裝 playwright（pip install -r requirements.txt && python -m playwright install chromium），"
+                        "或把 config/promotions.json 的 scan.playwright_headless 設為 false 再試。"
+                    )
                 if status == 200:
                     import json as _json
 
                     return _json.loads(text)
-                if status == 403 and "Access Denied" in text:
-                    if self._escalate("403 Access Denied"):
-                        attempt -= 1  # 換傳輸方式不算重試次數
-                        continue
-                    raise WatsonsBlocked(
-                        f"GET {path} -> HTTP 403 Access Denied（Akamai 擋機器人）。已試過的傳輸方式都被擋；"
-                        "請安裝 playwright（pip install -r requirements-playwright.txt && python -m playwright install chromium）"
-                        "或把 promotions.json 的 scan.watsons_transport 設為 playwright 並關閉 headless。"
-                    )
                 if status in (429, 500, 502, 503, 504):
                     log.warning("watsons %s -> %s (attempt %d)", path, status, attempt)
                     time.sleep(2.0 * attempt)
                     continue
                 raise WatsonsError(f"GET {path} -> HTTP {status}: {text[:200]}")
-            except (httpx.TransportError, ValueError) as e:  # network / bad json
+            except WatsonsError:
+                raise
+            except Exception as e:  # noqa: BLE001  # 網路錯誤 / JSON 壞掉 / 瀏覽器斷線
                 log.warning("watsons %s error %s (attempt %d)", path, e, attempt)
                 time.sleep(2.0 * attempt)
         raise WatsonsError(f"GET {path} failed after {self.max_retries} attempts")

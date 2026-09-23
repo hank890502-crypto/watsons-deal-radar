@@ -23,7 +23,7 @@
 ### 1.2 資料來源（已實測）
 
 **屈臣氏 `https://api.watsons.com.tw/api/v2/wtctw/…`（OCC v2，匿名可用）**
-Akamai 會擋「純 Python」的 TLS 指紋（httpx / requests 直接打會 403 Access Denied，GitHub Actions 的 IP 也擋），但瀏覽器頁面裡的 `fetch()` 可以。程式的 `watsons_transport: auto` 會依序用 **curl_cffi**（模仿 Chrome TLS 指紋）→ **playwright**（真的開 Chromium／系統 Chrome，在頁面裡 fetch）；`python -m radar probe` 會列出每種方式的結果。
+Akamai 會擋「純 Python」的 TLS 指紋（httpx / requests 直接打會 403 Access Denied，GitHub Actions 的 IP 也擋），但瀏覽器頁面裡的 `fetch()` 可以。程式的 `watsons_transport: auto` 會依序用 **curl_cffi**（模仿 Chrome TLS 指紋，先逛首頁拿 Akamai cookie）→ **playwright**（無頭模式開系統 Chrome／Chromium，在頁面裡 fetch）→ **playwright_headed**（開一個看得到的 Chrome 視窗，最像真人）；任何一步被擋（403、或回傳 HTML 挑戰頁）就自動換下一種。`python -m radar probe` 會列出每種方式的結果，掃描結果的 `source.watsons_transport` 記錄最後用的是哪一種。
 
 | 端點 | 用途 |
 |---|---|
