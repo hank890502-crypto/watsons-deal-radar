@@ -1,0 +1,25 @@
+{
+ "at": "2026-09-23T17:45:40+08:00",
+ "results": {
+  "watsons_search": {
+   "url": "https://api.watsons.com.tw/api/v2/wtctw/products/search?fields=BASIC&query=%3Arelevance&pageSize=1&currentPage=0&lang=zh_TW&curr=TWD",
+   "status": 403,
+   "elapsed_ms": 244,
+   "content_type": "text/html",
+   "server": "AkamaiGHost",
+   "body_head": "<HTML><HEAD>\n<TITLE>Access Denied</TITLE>\n</HEAD><BODY>\n<H1>Access Denied</H1>\n \nYou don't have permission to access \"http&#58;&#47;&#47;api&#46;watsons&#46;com&#46;tw&#47;api&#47;v2&#47;wtctw&#47;pro",
+   "ok": false
+  },
+  "biggo_shopee": {
+   "url": "https://biggo.com.tw/s/%E8%88%92%E9%85%B8%E5%AE%9A%E7%89%99%E8%86%8F?m=cp&c%5B%5D=tw_bid_shopee&c%5B%5D=tw_mall_shopeemall",
+   "status": 200,
+   "elapsed_ms": 1523,
+   "content_type": "text/html; charset=utf-8",
+   "server": "istio-envoy",
+   "body_head": "<!DOCTYPE html><html lang=\"zh-Hant\" dir=\"ltr\"><head><meta charSet=\"utf-8\"/><link href=\"//cdnjs.cloudflare.com\" rel=\"dns-prefetch\"/><link href=\"//img.biggo.com\" rel=\"dns-prefetch\"/><link href=\"//img2.b",
+   "ok": true,
+   "listings": 25
+  }
+ },
+ "ok": false
+}
