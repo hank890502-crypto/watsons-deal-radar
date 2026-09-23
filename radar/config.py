@@ -108,7 +108,7 @@ DEFAULT_PROMOTIONS: dict[str, Any] = {
         "min_discount_depth": 0.25,      # (原價 - 最佳單位成本)/原價 ≥ 25% 才去查
         "min_price": 40,                 # 太便宜的不值得賣
         "prefer_promos": ["任選兩件享買一送一，數量請選2件", "第2件4折", "清貨1折", "清貨3折", "清貨5折", "今日超殺價", "售價再享折扣"],
-        "request_delay_sec": 1.5,
+        "request_delay_sec": 3.0,        # BigGo 約 80 次/2.5 分鐘就會限流；放慢並加隨機抖動，被擋會冷卻再試
     },
 }
 

@@ -7,6 +7,7 @@
   python -m radar lookup BP_598686 [--keyword 自訂]   # 單一商品：成本 + 蝦皮參考價 + 利潤
   python -m radar notify-test                 # 發一則測試通知
   python -m radar probe                       # 測試屈臣氏 / BigGo 是否能從目前環境連線
+  python -m radar reeval                      # 不重掃：用上次快照 + 查價快取 + 目前設定重算利潤
   python -m radar shopee-login                # (選用) 開啟瀏覽器登入蝦皮，供 --shopee playwright 使用
 """
 from __future__ import annotations
@@ -43,6 +44,9 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("promos", help="列出促銷")
     sub.add_parser("probe", help="測試資料來源是否可連（寫入 web/data/probe.json）")
+    rv = sub.add_parser("reeval", help="用上次快照與查價快取重算（改設定／比對規則後不必重掃）")
+    rv.add_argument("--out", default=str(WEB_DATA_DIR))
+    rv.add_argument("--data", default=str(DATA_DIR))
     pb = sub.add_parser("publish", help="把 web/data 的掃描結果 commit 並推送到 GitHub")
     pb.add_argument("-m", "--message", default=None)
 
@@ -100,6 +104,13 @@ def main(argv: list[str] | None = None) -> int:
         from .publish import publish
 
         res = publish(message=args.message)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0 if res.get("ok") else 2
+
+    if args.cmd == "reeval":
+        from .reeval import reeval
+
+        res = reeval(out_dir=Path(args.out), data_dir=Path(args.data))
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0 if res.get("ok") else 2
 

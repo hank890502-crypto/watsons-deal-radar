@@ -94,12 +94,20 @@ def detect_pack_qty(listing_title: str, base_title: str) -> int:
     """
     lt = to_halfwidth(listing_title or "")
     bt = to_halfwidth(base_title or "")
-    for m in _QTY_X_RE.finditer(lt):
-        n = m.group(1) or m.group(2)
-        if n and 2 <= int(n) <= 24:
-            return int(n)
     base_units = num_units(bt)
     base_nums = set(re.findall(r"\d+", bt))
+    base_mult = {(m.group(1) or m.group(2)) for m in _QTY_X_RE.finditer(bt)}
+    for m in _QTY_X_RE.finditer(lt):
+        n = m.group(1) or m.group(2)
+        if not n or not (2 <= int(n) <= 24):
+            continue
+        if n in base_mult:
+            continue  # 屈臣氏名稱本身就是「4入」「x2」→ 同一包裝，不是多入組
+        if m.group(1):
+            return int(n)  # x3 / *2：明確的倍數
+        if n in base_nums:
+            continue  # 「4入」而 4 已在原名裡（例如 面膜4入）→ 同一包裝
+        return int(n)
     for n, u in _NUM_UNIT_RE.findall(lt):
         token = f"{n}{u}"
         if token in base_units or n in base_nums:
@@ -196,14 +204,19 @@ def pick_reference(
             break
     prices = [c["unit_price"] for c in matched]
     ref = None
+    capped = False
     if len(prices) >= max(1, min_listings):
         low = sorted(prices)[:3]
         if method == "min":
             ref = low[0]
         elif method == "median":
             ref = statistics.median(prices)
-        else:  # low3_median
-            ref = statistics.median(low)
+        else:  # low3_median：最低 3 筆的中位數（= 第二低）；只有 2 筆時取最低，避免被一筆高價拉高
+            ref = statistics.median(low) if len(low) >= 3 else low[0]
+        # 屈臣氏自家蝦皮商城也在賣時，買家不會付比它更高的價 → 參考價以它為上限
+        if official is not None and ref is not None and official < ref:
+            ref = official
+            capped = True
     return {
         "ref_price": round(ref, 2) if ref is not None else None,
         "method": method,
@@ -212,5 +225,6 @@ def pick_reference(
         "min": min(prices) if prices else None,
         "median": statistics.median(prices) if prices else None,
         "official": official,
+        "capped_by_official": capped,
         "candidates": cands[:40],
     }

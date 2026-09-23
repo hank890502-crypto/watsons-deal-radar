@@ -153,6 +153,7 @@ def run(opts: ScanOptions | None = None) -> dict[str, Any]:
             cands.insert(0, p)
     fresh_calls = 0
     looked = 0
+    shopee_gave_up = False
     for p in cands:
         over = (matches_cfg.get("overrides") or {}).get(p["code"]) or {}
         manual_ref = manual.ref_for(p["code"])
@@ -167,8 +168,13 @@ def run(opts: ScanOptions | None = None) -> dict[str, Any]:
                     continue
                 listings = cached or []
             else:
-                if getattr(provider, "consecutive_failures", 0) >= 5:
-                    log.error("蝦皮查價連續失敗 5 次，本次停止查價（可能被擋），改用快取")
+                if getattr(provider, "consecutive_failures", 0) >= 4:
+                    # 連續失敗：先冷卻再試（最多兩次），還是不行才放棄改吃快取
+                    if not (hasattr(provider, "cooldown") and provider.cooldown()):
+                        if not shopee_gave_up:
+                            log.error("蝦皮查價連續失敗（%s），本次停止查價，改用快取；剩下的下次再查", getattr(provider, "last_error", "?"))
+                        shopee_gave_up = True
+                if shopee_gave_up:
                     cached = provider._read_cache(keyword) if hasattr(provider, "_read_cache") else None  # type: ignore[attr-defined]
                     if cached is None and not manual_ref:
                         continue
@@ -220,7 +226,9 @@ def run(opts: ScanOptions | None = None) -> dict[str, Any]:
             "shopee_provider": provider.name,
             "shopee_calls": getattr(provider, "calls", 0),
             "shopee_cache_hits": getattr(provider, "cache_hits", 0),
-            "shopee_blocked": getattr(provider, "consecutive_failures", 0) >= 5,
+            "shopee_blocked": shopee_gave_up,
+            "shopee_last_error": getattr(provider, "last_error", None),
+            "shopee_cooldowns": getattr(provider, "cooldowns", 0),
             "lookups_evaluated": looked,
             "cache_pruned": pruned,
             "elapsed_sec": round(time.time() - t0, 1),

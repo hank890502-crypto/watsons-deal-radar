@@ -48,6 +48,29 @@ def test_sizes_and_pack_qty():
     # 屈臣氏名稱本身就有「30包」→ 不算多入
     assert detect_pack_qty("舒潔 袖珍包面紙 10抽30包", "舒潔袖珍包面紙10抽30包(包裝隨機出貨)") == 1
     assert detect_pack_qty("舒潔袖珍包面紙10抽30包 *2串", "舒潔袖珍包面紙10抽30包") == 2
+    # 「面膜4入」是屈臣氏單品本身的包裝（實際案例 BP_301554）→ 不是多入組
+    mask = "霓淨思自拍免修修淨膚亮白面膜4入"
+    assert detect_pack_qty("霓淨思自拍免修修淨膚亮白面膜4入", mask) == 1
+    assert detect_pack_qty("Neogence霓淨思 自拍免修修淨膚亮白面膜4入盒裝", mask) == 1
+    assert detect_pack_qty("霓淨思自拍免修修淨膚亮白面膜4入 x2盒", mask) == 2
+
+
+def test_reference_two_listings_and_official_cap():
+    # 實際案例 BP_287873：屈臣氏自家蝦皮商城 249、另一家 880 → 參考價不該是 (249+880)/2
+    p = {"name": "PUR%CENT璞珥森 10%A醇青春逆齡精華15ml", "brand": "PUR%CENT璞珥森"}
+    listings = [
+        {"id": "a", "title": "PUR%CENT璞珥森 10%A醇青春逆齡精華15ml", "price": 249, "shop": "屈臣氏Watsons", "url": "u1"},
+        {"id": "b", "title": "【會員專享價】10%A醇青春逆齡精華15ml-Pur%Cent璞珥森", "price": 880, "shop": "KUKU Select", "url": "u2"},
+    ]
+    ref = pick_reference(p, listings, min_score=0.45)
+    assert ref["n_matched"] == 2 and ref["ref_price"] == 249 and ref["official"] == 249
+    # 三筆以上：最低三筆中位數，但不高於屈臣氏商城價
+    listings.append({"id": "c", "title": "PUR%CENT璞珥森 10%A醇青春逆齡精華15ml", "price": 400, "shop": "z", "url": "u3"})
+    ref3 = pick_reference(p, listings, min_score=0.45)
+    assert ref3["ref_price"] == 249 and ref3["capped_by_official"] is True
+    listings[0]["price"] = 500  # 官方不是最低：最低三筆 [400, 500, 880] 的中位數 500，官方價不再壓低它
+    ref4 = pick_reference(p, listings, min_score=0.45)
+    assert ref4["ref_price"] == 500 and ref4["capped_by_official"] is False
 
 
 def test_similarity_and_score():

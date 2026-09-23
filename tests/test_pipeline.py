@@ -117,3 +117,25 @@ def test_pipeline_manual_override_triggers_alert(fake_env):
     # 再跑一次：24h 內不重複通知
     summary2 = pipeline.run(pipeline.ScanOptions(out_dir=out, data_dir=tmp / "data", notify=False, config_dir=cfgdir))
     assert summary2["new_alerts"] == 0
+
+
+def test_reeval_recomputes_from_snapshot(fake_env):
+    from radar import reeval as rv
+
+    tmp, prov = fake_env
+    out, data, cfgdir = tmp / "web", tmp / "data", tmp / "cfg"
+    pipeline.run(pipeline.ScanOptions(out_dir=out, data_dir=data, notify=False, config_dir=cfgdir))
+    before = read_json(out / "latest.json")
+    # 改設定：門檻放寬到 0%、訂單假設改小 → 不重掃也要反映
+    cfgdir.mkdir(exist_ok=True)
+    (cfgdir / "fees.json").write_text(json.dumps({"profit": {"alert_threshold": 0.0}, "assumptions": {"order_amount": 800}}), encoding="utf-8")
+    res = rv.reeval(out_dir=out, data_dir=data, config_dir=cfgdir)
+    assert res["ok"] and res["products"] == before["summary"]["products"]
+    after = read_json(out / "latest.json")
+    assert after["config"]["fees"]["assumptions"]["order_amount"] == 800
+    assert after["source"]["reevaluated_at"]
+    assert after["generated_at"] == before["generated_at"]
+    # 候選列表仍在（沒有快取時用快照裡的候選重算）
+    assert sum(1 for x in after["products"] if "candidates" in (x.get("shopee") or {})) == sum(1 for x in before["products"] if "candidates" in (x.get("shopee") or {}))
+    hist = read_json(out / "history.json")
+    assert len(next(iter(hist.values()))["points"]) == 1  # 沒有新增時間點

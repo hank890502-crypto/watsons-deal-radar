@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import random
 import re
 import time
 from pathlib import Path
@@ -143,6 +144,8 @@ class BigGoShopeeProvider:
         self.calls = 0
         self.cache_hits = 0
         self.consecutive_failures = 0
+        self.last_error: str | None = None   # 最近一次失敗原因（HTTP 429 / 沒有 ssrData…）
+        self.cooldowns = 0                    # 已做過幾次長時間冷卻
 
     def close(self) -> None:
         if self._own:
@@ -180,25 +183,42 @@ class BigGoShopeeProvider:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps({"ts": time.time(), "keyword": keyword, "listings": listings}, ensure_ascii=False), encoding="utf-8")
 
+    def _throttle(self) -> None:
+        # 固定間隔 + 0～40% 的隨機抖動，看起來不像固定頻率的機器
+        wait = self.delay_sec * (1 + random.random() * 0.4) - (time.monotonic() - self._last)
+        if wait > 0:
+            time.sleep(wait)
+
     def fetch_html(self, keyword: str) -> str:
         url = self.url_for(keyword)
         for attempt in range(1, self.max_retries + 1):
-            wait = self.delay_sec - (time.monotonic() - self._last)
-            if wait > 0:
-                time.sleep(wait)
+            self._throttle()
             try:
                 r = self.client.get(url)
                 self._last = time.monotonic()
                 self.calls += 1
                 if r.status_code == 200:
                     return r.text
+                self.last_error = f"HTTP {r.status_code}"
                 log.warning("biggo %s -> HTTP %s (attempt %d)", keyword, r.status_code, attempt)
-                if r.status_code in (403, 429):
-                    time.sleep(5.0 * attempt)
+                if r.status_code in (403, 429, 503):
+                    # 被限流：退避時間拉長（20s、40s…），不要密集重打
+                    time.sleep(20.0 * attempt)
             except httpx.TransportError as e:
+                self.last_error = f"{type(e).__name__}"
                 log.warning("biggo %s error %s (attempt %d)", keyword, e, attempt)
                 time.sleep(2.0 * attempt)
         return ""
+
+    def cooldown(self, seconds: float = 90.0) -> bool:
+        """連續失敗時冷卻一段時間再試（最多兩次）。回傳是否有做冷卻。"""
+        if self.cooldowns >= 2:
+            return False
+        self.cooldowns += 1
+        log.warning("biggo 疑似被限流（%s），冷卻 %d 秒後再試（第 %d 次）", self.last_error, int(seconds), self.cooldowns)
+        time.sleep(seconds)
+        self.consecutive_failures = 0
+        return True
 
     def search(self, keyword: str) -> list[dict[str, Any]]:
         cached = self._read_cache(keyword)
@@ -213,6 +233,7 @@ class BigGoShopeeProvider:
         if not ssr:
             # 200 但沒有 ssrData：可能是驗證頁／版面改版 → 不寫快取，並計入失敗
             self.consecutive_failures += 1
+            self.last_error = "200 但沒有 ssrData（驗證頁或版面變更）"
             log.warning("biggo %s: 頁面沒有 ssrData（可能被擋或版面變更）", keyword)
             return []
         self.consecutive_failures = 0

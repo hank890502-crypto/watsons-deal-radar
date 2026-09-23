@@ -200,8 +200,12 @@ export function refFromCandidates(cands, excludeIds, method = 'low3_median', min
   let ref;
   if (method === 'min') ref = prices[0];
   else if (method === 'median') ref = median(prices);
-  else ref = median(prices.slice(0, 3));
-  return { ref_price: r2(ref), n_matched: matched.length, min: prices[0], median: median(prices) };
+  else ref = prices.length >= 3 ? median(prices.slice(0, 3)) : prices[0]; // 只有 2 筆時取最低（與 Python 一致）
+  // 屈臣氏自家蝦皮商城也在賣 → 參考價不高於它
+  const official = matched.find((c) => /屈臣氏|watsons/i.test(c.shop || ''));
+  let capped = false;
+  if (official && official.unit_price < ref) { ref = official.unit_price; capped = true; }
+  return { ref_price: r2(ref), n_matched: matched.length, min: prices[0], median: median(prices), official: official ? official.unit_price : null, capped_by_official: capped };
 }
 
 export function cartTotal(items, coupons, feesCfg, promoCfg, cardsCfg) {
